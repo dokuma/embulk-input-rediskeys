@@ -9,11 +9,19 @@
 
 ## Configuration
 
-- host: Redis hostname (string, default:localhost).
+- key_prefix: Prefix of column name to read (string, required).
+- host: Redis hostname (string, default: localhost).
 - port: Redis port number (int, default: 6379).
 - db: Number of Redis DB to dump columns (int, default: 0).
-- key_prefix: Prefix of column name to read (string, required).
-- encode: Type of eoncoding of data to read (string, default:json).
+- match_key_as_key: Use matche key for key (bool, default: true).
+- encode: Type of eoncoding of data to read (string, default: json).
+- colmuns: List of column name. Set match_key_as_key true, must be required(list, default: null).
+
+Supported encode type are:
+
+- json
+- list
+- hash
 
 ## Example
 

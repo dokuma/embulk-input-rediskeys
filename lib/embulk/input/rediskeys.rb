@@ -14,6 +14,7 @@ module Embulk
           'port' => config.param('port', :integer, :default => 6379),
           'db' => config.param('db', :integer, :default => 0),
           'key_prefix' => config.param('key_prefix', :string, :default => ''),
+          'match_key_as_key' => config.param('match_key_as_key', :bool, :default => true),
           'encode' => config.param('encode', :string, :default => 'json')
         }
         
@@ -104,12 +105,14 @@ module Embulk
         end
       end
 
-      def run
+      def match_key_as_key
         records = []
         @redis.keys("#{@task['key_prefix']}*").each do |k|
           case @task['encode']
           when 'json'
             v = @redis.get(k)
+          when 'list'
+            v = @redis.lrange(k, 0, -1)
           when 'hash'
             v = @redis.hgetall(k).to_json
           end
@@ -119,6 +122,38 @@ module Embulk
           @rows += 1
         end
         @page_builder.add(records)
+      end
+
+      def expect_value_is_json
+        @redis.keys("#{@task['key_prefix']}*").each do |k|
+          case @task['encode']
+          when 'json'
+	    @page_builder.add(JSON.parse(@redis.get(k)).each_with_object({}) {|(key, value), new_hash|
+	      new_hash[key] = deserialize_element(key, value)
+	    }.values)
+            @rows += 1
+          when 'list'
+            @redis.lrange(k, 0, -1).each do |r|
+	      @page_builder.add(JSON.parse(r).each_with_object({}) {|(key, value), new_hash|
+		new_hash[key] = deserialize_element(key, value)
+	      }.values)
+              @rows += 1
+            end
+          when 'hash'
+	    @page_builder.add(JSON.parse(@redis.hgetall(k).to_json).each_with_object({}) {|(key, value), new_hash|
+	      new_hash[key] = deserialize_element(key, value)
+	    }.values)
+            @rows += 1
+          end
+        end
+      end
+
+      def run
+	if @task['match_key_as_key'] then
+	  match_key_as_key()
+	else
+	  expect_value_is_json()
+	end
         @page_builder.finish  # don't forget to call finish :-)
 
         task_report = {
